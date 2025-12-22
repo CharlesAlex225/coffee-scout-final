@@ -15,6 +15,8 @@ const categoryLabels: Record<string, string> = {
   cacao: "Chocolatier",
 };
 
+export const revalidate = 0; // Ensure we always get fresh data
+
 export default async function PlacePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
 
@@ -30,12 +32,12 @@ export default async function PlacePage({ params }: { params: Promise<{ slug: st
 
   const imageUrl = getPlaceholderImage(place.category);
   const displayCategory = categoryLabels[place.category] || place.category || "Place";
-  const mapLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+  const mapLink = `https://www.google.com/maps/search/?api=1&query=$?q=${encodeURIComponent(
     place.name + " " + (place.address || "")
   )}`;
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white pb-20">
       {/* HERO IMAGE */}
       <div className="relative h-[40vh] md:h-[50vh] w-full">
         <img src={imageUrl} alt={place.name} className="w-full h-full object-cover" />
@@ -85,7 +87,7 @@ export default async function PlacePage({ params }: { params: Promise<{ slug: st
             </div>
           </div>
 
-          {/* NEW: Display Amenities, Specialties, Dietary */}
+          {/* ATTRIBUTES GRID */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-6 border-t border-gray-100">
             {place.specialties && place.specialties.length > 0 && (
               <div>
@@ -144,6 +146,19 @@ export default async function PlacePage({ params }: { params: Promise<{ slug: st
               Get Directions ↗
             </a>
           </div>
+        </div>
+
+        {/* NEW: Community Feedback Section */}
+        <div className="md:col-span-3 mt-12 pt-8 border-t border-gray-200 text-center">
+          <p className="text-gray-500 text-sm mb-4">
+            See something wrong? Help us keep this guide accurate.
+          </p>
+          <a
+            href={`mailto:hello@cacaoteacoffee.com?subject=Edit Request: ${place.name}&body=Hi, I noticed something about ${place.name}...`}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors"
+          >
+            ✏️ Suggest an Edit
+          </a>
         </div>
       </main>
     </div>
