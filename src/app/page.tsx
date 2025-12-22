@@ -30,13 +30,21 @@ export default async function Home() {
           </p>
 
           {/* NEW: Curated Collections Buttons */}
-          <div className="flex justify-center gap-4">
+          <div className="flex flex-col sm:flex-row justify-center gap-4">
              <Link 
               href="/work" 
-              className="group flex items-center gap-3 px-6 py-3 bg-blue-900 text-white rounded-full font-bold shadow-lg hover:scale-105 transition-all"
+              className="flex items-center justify-center gap-3 px-6 py-3 bg-blue-900 text-white rounded-full font-bold shadow-lg hover:scale-105 transition-all"
             >
               <span className="text-xl">💻</span> 
               Find Deep Work Spots
+            </Link>
+
+            <Link 
+              href="/date" 
+              className="flex items-center justify-center gap-3 px-6 py-3 bg-rose-900 text-white rounded-full font-bold shadow-lg hover:scale-105 transition-all"
+            >
+              <span className="text-xl">🌹</span> 
+              Find Date Spots
             </Link>
           </div>
         </div>
