@@ -1,166 +1,152 @@
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import AddReviewForm from "@/components/AddReviewForm";
 
-function getPlaceholderImage(category: string | null) {
-  if (category === "coffee") return "https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=1200&q=80";
-  if (category === "tea") return "https://images.unsplash.com/photo-1594631252845-29fc4cc8cde9?auto=format&fit=crop&w=1200&q=80";
-  if (category === "cacao") return "https://images.unsplash.com/photo-1511381939415-e44015466834?auto=format&fit=crop&w=1200&q=80";
-  return "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=1200&q=80";
-}
+// Initialize Supabase
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
-const categoryLabels: Record<string, string> = {
-  coffee: "Coffee Shop",
-  tea: "Tea House",
-  cacao: "Chocolatier",
-};
+// Force dynamic rendering so we see new reviews instantly
+export const revalidate = 0;
 
-export const revalidate = 0; // Ensure we always get fresh data
+export default async function PlaceDetails(props: { params: Promise<{ slug: string }> }) {
+  
+  // 1. Await the params
+  const params = await props.params;
 
-export default async function PlacePage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
-
-  const { data: place } = await supabase
+  // 2. Fetch the Place
+  const { data: places } = await supabase
     .from("places")
     .select("*")
-    .eq("slug", slug)
-    .single();
+    .eq("slug", params.slug);
 
-  if (!place) {
-    notFound();
-  }
+  const place = places?.[0];
 
-  const imageUrl = getPlaceholderImage(place.category);
-  const displayCategory = categoryLabels[place.category] || place.category || "Place";
-  const mapLink = `https://www.google.com/maps/search/?api=1&query=$?q=${encodeURIComponent(
-    place.name + " " + (place.address || "")
-  )}`;
+  if (!place) return notFound();
+
+  // 3. Fetch the Reviews (WE DO THIS FIRST)
+  const { data: reviews } = await supabase
+    .from("reviews")
+    .select("*")
+    .eq("place_id", place.id)
+    .order("created_at", { ascending: false });
+
+  // 4. Calculate Average (WE DO THIS SECOND - Safe now!)
+  const averageRating = reviews && reviews.length > 0
+    ? (reviews.reduce((acc, review) => acc + review.rating, 0) / reviews.length).toFixed(1)
+    : "New";
 
   return (
-    <div className="min-h-screen bg-white pb-20">
-      {/* HERO IMAGE */}
-      <div className="relative h-[40vh] md:h-[50vh] w-full">
-        <img src={imageUrl} alt={place.name} className="w-full h-full object-cover" />
+    <div className="min-h-screen bg-neutral-50">
+      {/* Hero Image */}
+      <div className="h-[400px] relative">
+        <img
+          src={place.image_url || "https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&q=80"}
+          className="w-full h-full object-cover"
+          alt={place.name}
+        />
         <div className="absolute inset-0 bg-black/40" />
-        
-        <div className="absolute top-6 left-6 md:top-10 md:left-10">
-          <Link 
-            href="/" 
-            className="inline-flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur rounded-full text-sm font-bold hover:bg-white transition-colors"
-          >
-            ← Back to Scout
-          </Link>
-        </div>
+        <div className="absolute bottom-0 left-0 w-full p-8 bg-gradient-to-t from-black/80 to-transparent">
+          <div className="max-w-4xl mx-auto text-white">
+            <Link href="/" className="text-sm uppercase tracking-widest hover:underline opacity-80 mb-2 block">← Back to Map</Link>
+            <h1 className="text-5xl font-extrabold mb-2">{place.name}</h1>
+            
+            {/* NEW: Category + Rating Badge */}
+            <div className="flex gap-2 mt-4">
+              <span className="bg-orange-600 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide">
+                {place.category}
+              </span>
+              <span className="bg-white text-black text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
+                ★ {averageRating} <span className="text-gray-400 font-normal">({reviews?.length} reviews)</span>
+              </span>
+            </div>
 
-        <div className="absolute bottom-0 left-0 w-full p-6 md:p-10 text-white">
-          <div className="max-w-4xl mx-auto">
-            <span className="inline-block px-3 py-1 bg-orange-500 text-white text-xs font-bold uppercase tracking-widest rounded-md mb-3">
-              {displayCategory}
-            </span>
-            <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight">
-              {place.name}
-            </h1>
           </div>
         </div>
       </div>
 
-      {/* CONTENT GRID */}
-      <main className="max-w-4xl mx-auto px-6 py-12 grid grid-cols-1 md:grid-cols-3 gap-12">
+      <div className="max-w-4xl mx-auto px-6 py-12 grid grid-cols-1 md:grid-cols-3 gap-12">
         
-        {/* LEFT COLUMN: Summary & Vibe */}
-        <div className="md:col-span-2 space-y-10">
+        {/* Left Column: Details */}
+        <div className="md:col-span-2 space-y-8">
           <div>
-            <h2 className="text-2xl font-bold mb-4">About the spot</h2>
-            <p className="text-lg text-gray-600 leading-relaxed">
-              {place.editorial_summary}
-            </p>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">About this Spot</h2>
+            <p className="text-lg text-gray-600 leading-relaxed">{place.description}</p>
           </div>
 
+          <hr className="border-gray-200" />
+
+          {/* REVIEWS SECTION */}
           <div>
-            <h3 className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-3">The Vibe</h3>
-            <div className="flex gap-2 flex-wrap">
-              {place.vibe_tags?.map((tag: string) => (
-                <span key={tag} className="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium capitalize">
-                  {tag}
-                </span>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-gray-900">Community Reviews 💬</h3>
+            </div>
+            
+            {/* The Review Form Button */}
+            <AddReviewForm placeId={place.id} />
+            
+            <div className="h-6"></div> 
+
+            {/* If no reviews yet */}
+            {reviews?.length === 0 && (
+              <div className="bg-white p-6 rounded-xl border border-gray-100 text-center text-gray-500">
+                No reviews yet. Be the first to try it!
+              </div>
+            )}
+
+            {/* List of Reviews */}
+            <div className="space-y-4">
+              {reviews?.map((review) => (
+                <div key={review.id} className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="font-bold text-gray-900">{review.user_name}</span>
+                    <span className="text-orange-500 font-bold">{"★".repeat(review.rating)}<span className="text-gray-300">{"★".repeat(5 - review.rating)}</span></span>
+                  </div>
+                  <p className="text-gray-600">{review.comment}</p>
+                  <p className="text-xs text-gray-400 mt-2">{new Date(review.created_at).toLocaleDateString()}</p>
+                </div>
               ))}
             </div>
           </div>
+        </div>
 
-          {/* ATTRIBUTES GRID */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-6 border-t border-gray-100">
-            {place.specialties && place.specialties.length > 0 && (
-              <div>
-                <h4 className="font-bold mb-2">Specialties</h4>
-                <ul className="list-disc list-inside text-gray-600 text-sm space-y-1">
-                  {place.specialties.map((item: string) => <li key={item}>{item}</li>)}
-                </ul>
-              </div>
-            )}
+        {/* Right Column: Info Card */}
+        <div>
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 sticky top-8">
+            <h3 className="font-bold text-gray-900 mb-4">Visit Info</h3>
             
-            {place.amenities && place.amenities.length > 0 && (
-              <div>
-                <h4 className="font-bold mb-2">Amenities</h4>
-                <ul className="list-disc list-inside text-gray-600 text-sm space-y-1">
-                  {place.amenities.map((item: string) => <li key={item}>{item}</li>)}
-                </ul>
-              </div>
-            )}
+            <div className="h-40 bg-gray-100 rounded-lg mb-6 overflow-hidden relative">
+               <img 
+                 src="https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&q=80" 
+                 className="w-full h-full object-cover opacity-50" 
+               />
+               <div className="absolute inset-0 flex items-center justify-center">
+                 <a 
+                   href={`https://www.google.com/maps/search/?api=1&query=${place.lat},${place.long}`} 
+                   target="_blank"
+                   className="bg-white text-xs font-bold px-3 py-2 rounded shadow hover:bg-gray-50"
+                 >
+                   Open in Google Maps ↗
+                 </a>
+               </div>
+            </div>
 
-            {place.dietary && place.dietary.length > 0 && (
-              <div>
-                <h4 className="font-bold mb-2">Dietary</h4>
-                <div className="flex flex-wrap gap-2">
-                  {place.dietary.map((item: string) => (
-                    <span key={item} className="text-xs border border-green-200 bg-green-50 text-green-700 px-2 py-1 rounded-md">
-                      {item}
-                    </span>
-                  ))}
-                </div>
+            <div className="space-y-4 text-sm text-gray-600">
+              <div className="flex items-center gap-3">
+                 <span>📍</span> 
+                 <span>{place.lat ? "Coordinates available" : "Location hidden"}</span>
               </div>
-            )}
-            
-            {place.brand_source && (
-               <div>
-                <h4 className="font-bold mb-2">Sourcing</h4>
-                <p className="text-sm text-gray-600">
-                  Serving <span className="font-semibold text-black">{place.brand_source}</span>
-                </p>
+              <div className="flex items-center gap-3">
+                 <span>📶</span> 
+                 <span>Free Wifi usually available</span>
               </div>
-            )}
+            </div>
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Action Card */}
-        <div className="space-y-6">
-          <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100 sticky top-10">
-            <h3 className="font-bold text-gray-900 mb-4">Location</h3>
-            <p className="text-gray-600 mb-6">{place.address}</p>
-            
-            <a
-              href={mapLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center w-full py-3 bg-black text-white rounded-xl font-semibold hover:bg-gray-800 transition-colors shadow-lg shadow-gray-200"
-            >
-              Get Directions ↗
-            </a>
-          </div>
-        </div>
-
-        {/* NEW: Community Feedback Section */}
-        <div className="md:col-span-3 mt-12 pt-8 border-t border-gray-200 text-center">
-          <p className="text-gray-500 text-sm mb-4">
-            See something wrong? Help us keep this guide accurate.
-          </p>
-          <a
-            href={`mailto:hello@cacaoteacoffee.com?subject=Edit Request: ${place.name}&body=Hi, I noticed something about ${place.name}...`}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors"
-          >
-            ✏️ Suggest an Edit
-          </a>
-        </div>
-      </main>
+      </div>
     </div>
   );
 }
